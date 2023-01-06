@@ -1,153 +1,152 @@
 #include "shell.h"
-/**
- * exit_bul - Exit Statue Shell
- * @cmd: Parsed Command
- * @input: User Input
- * @argv:Program Name
- * @c:Excute Count
- * Return: Void (Exit Statue)
- */
-void  exit_bul(char **cmd, char *input, char **argv, int c)
-{
-	int statue, i = 0;
 
-	if (cmd[1] == NULL)
+int shellby_alias(char **args, char __attribute__((__unused__)) **front);
+void set_alias(char *var_name, char *value);
+void print_alias(alias_t *alias);
+
+/**
+ * shellby_alias - Builtin command that either prints all aliases, specific
+ * aliases, or sets an alias.
+ * @args: An array of arguments.
+ * @front: A double pointer to the beginning of args.
+ *
+ * Return: If an error occurs - -1.
+ *         Otherwise - 0.
+ */
+int shellby_alias(char **args, char __attribute__((__unused__)) **front)
+{
+	alias_t *temp = aliases;
+	int i, ret = 0;
+	char *value;
+
+	if (!args[0])
 	{
-		free(input);
-		free(cmd);
-		exit(EXIT_SUCCESS);
-	}
-	while (cmd[1][i])
-	{
-		if (_isalpha(cmd[1][i++]) != 0)
+		while (temp)
 		{
-			_prerror(argv, c, cmd);
-			break;
+			print_alias(temp);
+			temp = temp->next;
+		}
+		return (ret);
+	}
+	for (i = 0; args[i]; i++)
+	{
+		temp = aliases;
+		value = _strchr(args[i], '=');
+		if (!value)
+		{
+			while (temp)
+			{
+				if (_strcmp(args[i], temp->name) == 0)
+				{
+					print_alias(temp);
+					break;
+				}
+				temp = temp->next;
+			}
+			if (!temp)
+				ret = create_error(args + i, 1);
 		}
 		else
+			set_alias(args[i], value);
+	}
+	return (ret);
+}
+
+/**
+ * set_alias - Will either set an existing alias 'name' with a new value,
+ * 'value' or creates a new alias with 'name' and 'value'.
+ * @var_name: Name of the alias.
+ * @value: Value of the alias. First character is a '='.
+ */
+void set_alias(char *var_name, char *value)
+{
+	alias_t *temp = aliases;
+	int len, j, k;
+	char *new_value;
+
+	*value = '\0';
+	value++;
+	len = _strlen(value) - _strspn(value, "'\"");
+	new_value = malloc(sizeof(char) * (len + 1));
+	if (!new_value)
+		return;
+	for (j = 0, k = 0; value[j]; j++)
+	{
+		if (value[j] != '\'' && value[j] != '"')
+			new_value[k++] = value[j];
+	}
+	new_value[k] = '\0';
+	while (temp)
+	{
+		if (_strcmp(var_name, temp->name) == 0)
 		{
-			statue = _atoi(cmd[1]);
-			free(input);
-			free(cmd);
-			exit(statue);
+			free(temp->value);
+			temp->value = new_value;
+			break;
+		}
+		temp = temp->next;
+	}
+	if (!temp)
+		add_alias_end(&aliases, var_name, new_value);
+}
+
+/**
+ * print_alias - Prints the alias in the format name='value'.
+ * @alias: Pointer to an alias.
+ */
+void print_alias(alias_t *alias)
+{
+	char *alias_string;
+	int len = _strlen(alias->name) + _strlen(alias->value) + 4;
+
+	alias_string = malloc(sizeof(char) * (len + 1));
+	if (!alias_string)
+		return;
+	_strcpy(alias_string, alias->name);
+	_strcat(alias_string, "='");
+	_strcat(alias_string, alias->value);
+	_strcat(alias_string, "'\n");
+
+	write(STDOUT_FILENO, alias_string, len);
+	free(alias_string);
+}
+/**
+ * replace_aliases - Goes through the arguments and replace any matching alias
+ * with their value.
+ * @args: 2D pointer to the arguments.
+ *
+ * Return: 2D pointer to the arguments.
+ */
+char **replace_aliases(char **args)
+{
+	alias_t *temp;
+	int i;
+	char *new_value;
+
+	if (_strcmp(args[0], "alias") == 0)
+		return (args);
+	for (i = 0; args[i]; i++)
+	{
+		temp = aliases;
+		while (temp)
+		{
+			if (_strcmp(args[i], temp->name) == 0)
+			{
+				new_value = malloc(sizeof(char) * (_strlen(temp->value) + 1));
+				if (!new_value)
+				{
+					free_args(args, args);
+					return (NULL);
+				}
+				_strcpy(new_value, temp->value);
+				free(args[i]);
+				args[i] = new_value;
+				i--;
+				break;
+			}
+			temp = temp->next;
 		}
 	}
-}
 
-
-/**
- * change_dir - Change Dirctorie
- * @cmd: Parsed Command
- * @er: Statue Last Command Excuted
- * Return: 0 Succes 1 Failed (For Old Pwd Always 0 Case No Old PWD)
- */
-int change_dir(char **cmd, __attribute__((unused))int er)
-{
-	int value = -1;
-	char cwd[PATH_MAX];
-
-	if (cmd[1] == NULL)
-		value = chdir(getenv("HOME"));
-	else if (_strcmp(cmd[1], "-") == 0)
-	{
-		value = chdir(getenv("OLDPWD"));
-	}
-	else
-		value = chdir(cmd[1]);
-
-	if (value == -1)
-	{
-		perror("hsh");
-		return (-1);
-	}
-	else if (value != -1)
-	{
-		getcwd(cwd, sizeof(cwd));
-		setenv("OLDPWD", getenv("PWD"), 1);
-		setenv("PWD", cwd, 1);
-	}
-	return (0);
-}
-/**
- * dis_env - Display Enviroment Variable
- * @cmd:Parsed Command
- * @er:Statue of Last command Excuted
- * Return:Always 0
- */
-int dis_env(__attribute__((unused)) char **cmd, __attribute__((unused)) int er)
-{
-size_t i;
-	int len;
-
-	for (i = 0; environ[i] != NULL; i++)
-	{
-		len = _strlen(environ[i]);
-		write(1, environ[i], len);
-		write(STDOUT_FILENO, "\n", 1);
-	}
-	return (0);
-}
-/**
- * display_help - Displaying Help For Builtin
- * @cmd:Parsed Command
- * @er: Statue Of Last Command Excuted
- * Return: 0 Succes -1 Fail
- */
-int display_help(char **cmd, __attribute__((unused))int er)
-{
-	int fd, fw, rd = 1;
-	char c;
-
-	fd = open(cmd[1], O_RDONLY);
-	if (fd < 0)
-	{
-		perror("Error");
-		return (0);
-	}
-	while (rd > 0)
-	{
-		rd = read(fd, &c, 1);
-		fw = write(STDOUT_FILENO, &c, rd);
-		if (fw < 0)
-		{
-			return (-1);
-		}
-	}
-	_putchar('\n');
-	return (0);
-}
-/**
- * echo_bul - Excute Echo Cases
- * @st:Statue Of Last Command Excuted
- * @cmd: Parsed Command
- * Return: Always 0 Or Excute Normal Echo
- */
-int echo_bul(char **cmd, int st)
-{
-	char *path;
-	unsigned int  pid = getppid();
-
-	if (_strncmp(cmd[1], "$?", 2) == 0)
-	{
-		print_number_in(st);
-		PRINTER("\n");
-	}
-	else if (_strncmp(cmd[1], "$$", 2) == 0)
-	{
-		print_number(pid);
-		PRINTER("\n");
-
-	}
-	else if (_strncmp(cmd[1], "$PATH", 5) == 0)
-	{
-		path = _getenv("PATH");
-		PRINTER(path);
-		PRINTER("\n");
-		free(path);
-
-	}
-	else
-		return (print_echo(cmd));
-
-	return (1);
+	return (args);
 }
