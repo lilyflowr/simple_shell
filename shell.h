@@ -212,9 +212,9 @@ typedef struct  bulltin
 
 {
 
-		char *command;
+	char *command;
 
-			int (*fun)(char **line, int er);
+	int (*fun)(char **line, int er);
 
 } bul_t;
 
